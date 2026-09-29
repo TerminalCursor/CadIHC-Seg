@@ -4,4 +4,11 @@ dump/
 promising/
 promising
 __pycache__/
+build/
 tmp_out
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
+*.c
+*.so

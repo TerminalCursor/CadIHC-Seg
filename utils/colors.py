@@ -1,4 +1,8 @@
-def color_mask(mask, background=0):
+from numpy.typing import NDArray
+from numpy.ma import MaskedArray
+
+
+def color_mask(mask: NDArray | MaskedArray, background: int | None = 0):
     """# Generate a Colormap for the Mask
 
     If the `ncolor` library is available, that will be used
@@ -7,9 +11,10 @@ def color_mask(mask, background=0):
     background: An integer or `None`
      `None` implies that the background should not be masked
      Otherwise, return the colormap masked to the background value"""
+    from numpy.ma import masked_equal
+
     try:
         import ncolor
-        from numpy.ma import masked_equal
 
         nmask = ncolor.label(mask)
         if background is not None:

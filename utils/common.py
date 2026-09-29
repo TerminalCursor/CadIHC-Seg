@@ -1,3 +1,6 @@
+from matplotlib.colors import Colormap
+
+
 def preproc_results(results):
     """# Preprocess Dictionary Results
 
@@ -158,7 +161,7 @@ def evaluate_model(model, data_mask_tuple, diameter=30, full=False, slow=False):
     return orig_evaluate_model(model, data_mask_tuple, diameter=diameter)
 
 
-def random_colormap(data, base_colormap=None):
+def random_colormap(data, base_colormap=None) -> Colormap:
     """# Randomly Color Data
 
     Instead of having a sequential colormap, randomly color data.
@@ -389,3 +392,149 @@ def logtile(
             logger.addnl(preproc_results(evaluation_results))
             # Log tiler Result
             test_tuple[2][idx].eval(jdx, *list(ev.values()))
+
+
+def load_image(ffile, halve=True):
+    """# Load Image
+
+    1. Load an image
+    2. Move axes to (channel, width, height)
+    3. Transform it under standard normalization transformation
+    4. Subsample by a factor of two if halve is true
+    """
+    from matplotlib import pyplot as plt
+    from .image import transform_image
+    image = plt.imread(ffile)
+    assert len(image.shape) == 3
+    if image.shape[0] > 4:
+        image = image.transpose(2, 0, 1)
+    if image.shape[0] == 4:
+        image = image[:3, ...]
+    image = transform_image(image)
+    if halve:
+        image = image[:, ::2, ::2]
+    return image
+
+
+def load_pth(pth):
+    """# Load a Cellpose pth"""
+    from . import ModelBuildConfig
+    from cellpose import models
+    cfg = ModelBuildConfig()
+    cfg.pretrained_model = pth
+    return models.CellposeModel(**cfg.todict())
+
+
+def segment(image, c_mstr, n_mstr, restrict=True, closeup=True, masked=False):
+    """# Segment an Image
+
+    c_mstr: Cell-segmentation model pth string
+    n_mstr: Nucleus-segmentation model pth string (None = no nucleus processing)
+    restrict: Ignore nuclei outside cell-positive region
+    closeup: Whether to closeup stained regions
+    masked: Whether to return a masked numpy array for segmentations
+
+    Returns masks and raw evaluation outputs"""
+    from numpy import unique, zeros_like
+
+    # Returns the cellpose segmentation and the nuclear segmentation
+    if isinstance(image, list):
+        results = [
+            segment(
+                im, c_mstr, n_mstr, restrict=restrict, closeup=closeup, masked=masked
+            )
+            for im in image
+        ]
+        return zip(*results)
+
+    c_model = load_pth(c_mstr)
+
+    n_model = None
+    if n_mstr is not None:
+        n_model = load_pth(n_mstr)
+
+    # Cellpose Segmentation
+    c_ma = None
+    ma, c_raw, _ = c_model.eval([image])
+    c_raw = c_raw[0][2]
+    if closeup:
+        # Try to closeup holes
+        try:
+            c_ma = postforward(c_model, image)
+        # Otherwise just use original mask
+        except:
+            c_ma = ma[0]
+    else:
+        c_ma = ma[0]
+
+    n_ma = None
+    n_raw = None
+    if n_model is not None:
+        ma, n_raw, _ = n_model.eval([image])
+        n_raw = n_raw[0][2]
+        n_ma_raw = ma[0]
+
+        if restrict:
+            n_ma = zeros_like(n_ma_raw)
+
+            c_mask = c_ma > 0
+            n_overlap = n_ma_raw[c_mask]
+            n_keep = list(
+                set([int(v) for v in unique(n_overlap)])
+                - {
+                    0,
+                }
+            )
+            detection_number = 1
+            for keep in n_keep:
+                n_ma[n_ma_raw == keep] = detection_number
+                detection_number += 1
+        else:
+            n_ma = n_ma_raw
+
+    if masked:
+        from numpy.ma import masked_equal
+
+        c_ma = masked_equal(c_ma, 0)
+        if n_ma is not None:
+            n_ma = masked_equal(n_ma, 0)
+    return c_ma, n_ma, c_raw, n_raw
+
+
+def dot_mask(ma, im=None, w=4):
+    if isinstance(ma, list):
+        res = [dot_mask(m, im=im, w=w) for m in ma]
+        return zip(*res)
+    from scipy.ndimage import center_of_mass
+    from numpy import unique
+    from numpy.ma import MaskedArray
+
+    if isinstance(ma, MaskedArray):
+        mav = ma.data
+    else:
+        mav = ma
+    oim = None
+    if im is not None:
+        oim = im.copy()
+    mask_vs = list(
+        set([int(v) for v in unique(mav)])
+        - {
+            0,
+        }
+    )
+    data = []
+    D = w // 2
+    d = w % 2
+    for v in mask_vs:
+        x, y = center_of_mass(mav == v)
+        if oim is not None:
+            X = int(x)
+            Y = int(y)
+            xs = slice(max(0, X - D), X + D + d)
+            ys = slice(max(0, Y - D), Y + D + d)
+            oim[0, xs, ys] = 1
+            oim[1:, xs, ys] = 0
+        x = float(x) / mav.shape[0]
+        y = float(x) / mav.shape[1]
+        data.append((x, y))
+    return data, oim

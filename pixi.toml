@@ -1,31 +1,65 @@
 [workspace]
 channels = ["pytorch", "conda-forge", "nvidia"]
 channel-priority = "disabled"
-description = "Histology Segmentation Environment"
+description = "Histology Processing Environments"
 name = "HistSeg"
 platforms = ["linux-aarch64", "linux-64"]
 version = "0.1.0"
 
 [tasks]
-train = {cmd = "python GeneralizedWorkflow.py"}
+build = { cmd = "python setup.py build_ext --inplace" }
+
+[environments]
+cyto = ["cyto"]
+sam = ["sam"]
 
 [system-requirements]
 cuda = "12.8"
 
-[dependencies]
-python = "3.12.*"
-pip = "*"
-pytorch = "*"
-llvm = ">=19.1.6,<20"
-numpy = ">=2"
-simpleitk = "*"
-scikit-image = ">=0.25.2,<0.26"
-black = ">=25.1.0,<26"
+[feature.cyto.system-requirements]
+cuda = "12.8"
 
-[pypi-dependencies]
-ipykernel = "*"
-ipywidgets = "*"
+[feature.cyto.dependencies]
+python = ">=3.10"
+llvm = ">=19.1.6,<20"
+numpy = "<2"
+pip = ">=26.0.1,<27"
+pytorch = ">=2.10.0,<3"
+matplotlib = ">=3.10.8,<4"
+simpleitk = ">=2.5.3,<3"
+scikit-image = ">=0.25.2,<0.27"
+pandas = ">=2.3.3,<4"
+
+[feature.cyto.pypi-dependencies]
+opencv-python-headless = "<4.3"
+cellpose = "<=3.1.0"
+ncolor = ">=1.5.3, <2"
+ciecam02 = ">=1.0.6, <2"
+
+[feature.sam.system-requirements]
+cuda = "12.8"
+
+[feature.sam.dependencies]
+python = ">=3.12"
+llvm = ">=19.1.6,<20"
+numpy = "<2"
+pip = ">=26.0.1,<27"
+pytorch = ">=2.10.0,<3"
+matplotlib = ">=3.10.8,<4"
+simpleitk = ">=2.5.3,<3"
+scikit-image = ">=0.25.2,<0.27"
+pandas = ">=2.3.3,<4"
+torchvision = ">=0.25.0,<0.26"
+scikit-learn = ">=1.8.0,<2"
+cython = ">=3.2.4,<4"
+setuptools = ">=82.0.0,<83"
+
+[feature.sam.pypi-dependencies]
 cellpose = { git = "https://www.github.com/mouseland/cellpose.git", rev = "d95f58a6676362d4e625076e55cd73b47c3bae26" }
-matplotlib = "*"
-ncolor = "*"
-ciecam02 = "*"
+ncolor = ">=1.5.3, <2"
+ciecam02 = ">=1.0.6, <2"
+histseg = { path =  '.', editable = true }
+
+[dependencies]
+pyright = ">=1.1.408,<2"
+black = ">=26.1.0,<27"

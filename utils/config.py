@@ -70,6 +70,7 @@ class ModelBuildConfig(ParameterInterface):
 
     gpu: bool = core.use_gpu()
     diam_mean: float = 30
+    pretrained_model: str | None = None
 
     @property
     def nchan(self):
@@ -90,8 +91,13 @@ class ModelBuildConfig(ParameterInterface):
         out_dict = asdict_(self)
         if self.nchan is not None:
             out_dict["nchan"] = self.nchan
-        if "pretrained_model" in dir(self):
+        if self.pretrained_model is not None:
             out_dict["pretrained_model"] = self.pretrained_model
+        else:
+            if "pretrained_model" in out_dict.keys():
+                del out_dict["pretrained_model"]
+        if self.nchan is None:
+            del out_dict["diam_mean"]
         return out_dict
 
 
@@ -116,32 +122,42 @@ class AugmentConfig(ParameterInterface):
     pinch: Strength of perturbation in region
     """
 
-    _count_lo: int = 20
-    _count_hi: int = 40
+    #_count_lo: int = 20
+    #_count_hi: int = 40
+    _count_lo: int = 32
+    _count_hi: int = 64
 
     @property
     def count(self):
         return RandomVariable(self._count_lo, self._count_hi)
 
-    _radius_lo: int = 24
-    _radius_hi: int = 48
+    #_radius_lo: int = 24
+    #_radius_hi: int = 48
+    _radius_lo: int = 12
+    _radius_hi: int = 24
 
     @property
     def radius(self):
         return RandomVariable(self._radius_lo, self._radius_hi)
 
-    _pinch_lo: int = -18
-    _pinch_hi: int = -12
+    #_pinch_lo: int = -18
+    #_pinch_hi: int = -12
+    _pinch_lo: int = 6
+    _pinch_hi: int = 10
 
     @property
     def pinch_strength(self):
         return RandomVariable(self._pinch_lo, self._pinch_hi)
+
+    debug: bool | None = None
 
     def todict(self):
         out_dict = asdict_(self)
         out_dict["count"] = self.count
         out_dict["radius"] = self.radius
         out_dict["pinch_strength"] = self.pinch_strength
+        if self.debug is not None:
+            out_dict["debug"] = self.debug
         return out_dict
 
 

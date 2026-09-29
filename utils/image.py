@@ -1,4 +1,24 @@
-def perterb_image_and_mask(image, mask, count=30, radius=60, pinch_strength=-12):
+def add_peak(df, x, y, s, r, t):
+    from numpy import sin, cos
+    from itertools import product
+    for _r in range(int(r),0,-1):
+        xm = max(0,(int(x) - _r))
+        xM = min(df.shape[0]-1,(int(x) + _r))+1
+        ym = max(0,(int(y) - _r))
+        yM = min(df.shape[1]-1,(int(y) + _r))+1
+        xr = range(xm,xM)
+        yr = range(ym,yM)
+        for (_x, _y) in product(xr, yr):
+            d = ((_x - x) ** 2. + (_y - y) ** 2.) - _r ** 2.
+            if (d > 0):
+                continue
+            S = s * ((r-_r)/r)
+            df[_x,_y,0] = S * sin(t)
+            df[_x,_y,1] = S * cos(t)
+    return df
+
+
+def perterb_image_and_mask(image, mask, count=30, radius=60, pinch_strength=-12, _debug=True):
     from importlib.util import find_spec
 
     if find_spec("SimpleITK") is None:
@@ -7,7 +27,10 @@ def perterb_image_and_mask(image, mask, count=30, radius=60, pinch_strength=-12)
         raise NotImplementedError
     import SimpleITK as sitk
     import numpy as np
+    from matplotlib import pyplot as plt
+    from copy import deepcopy as dc
 
+    N_centers = count
     data_dict = {
         "masks": mask,
         "image": image,
@@ -21,116 +44,85 @@ def perterb_image_and_mask(image, mask, count=30, radius=60, pinch_strength=-12)
     displacement_field = np.zeros(
         (*image_size, s_Image.GetDimension()), dtype=np.float64
     )
-    d_size = displacement_field.shape
+    displacement_field = displacement_field.transpose(1,0,2)
+    displacement_fields = np.zeros(
+        (*image_size, s_Image.GetDimension(), N_centers), dtype=np.float64
+    )
+    displacement_fields = displacement_fields.transpose(1,0,2,3)
 
-    radius, pinch_strength = 64, -12.0
-    N_centers = count
     centers = np.random.randint(
         (radius + 1, radius + 1),
-        (image_size[0] - radius - 1, image_size[1] - radius - 1),
+        (image_size[1] - radius - 1, image_size[0] - radius - 1),
         size=(N_centers, 2),
     )
 
-    # Create a pinching effect:
-    for center in centers:
-        xmin = max(0, center[0] - radius)
-        xmax = min(image_size[0], center[0] + radius)
-        ymin = max(0, center[1] - radius)
-        ymax = min(image_size[1], center[1] + radius)
-        _dir = np.random.randint((-1, -1), (1 + 1, 1 + 1))
-        for x in range(xmin, xmax):
-            for y in range(ymin, ymax):
-                distance = np.sqrt((x - center[0]) ** 2 + (y - center[1]) ** 2)
-                if distance < radius:
-                    # Calculate the direction towards the center
-                    direction_x = (center[0] - x) / distance if distance > 0 else 0
-                    direction_y = (center[1] - y) / distance if distance > 0 else 0
-
-                    # Scale the displacement based on proximity to the center and a pinching strength
-                    displacement_x = (
-                        _dir[0]
-                        * np.abs(direction_x * (radius - distance) / radius)
-                        * pinch_strength
-                    )
-                    displacement_y = (
-                        _dir[1]
-                        * np.abs(direction_y * (radius - distance) / radius)
-                        * pinch_strength
-                    )
-
-                    displacement_field[x, y, 0] = displacement_x
-                    displacement_field[x, y, 1] = displacement_y
+    # Create a light drag in a random direction
+    for idx,center in enumerate(centers):
+        theta = np.random.rand() * np.pi * 2
+        displacement_field = add_peak(displacement_field, center[0], center[1], np.abs(pinch_strength), radius, theta)
+        displacement_fields[...,idx] = add_peak(displacement_fields[...,idx], center[0], center[1], np.abs(pinch_strength), radius, theta)
 
     # Convert the numpy array displacement field to a SimpleITK image
-    displacement_image = sitk.GetImageFromArray(displacement_field, isVector=True)
-    displacement_image.SetSpacing(s_Image.GetSpacing())
-    displacement_image.SetOrigin(s_Image.GetOrigin())
-    displacement_image.SetDirection(s_Image.GetDirection())
-    displacement_transform = sitk.DisplacementFieldTransform(displacement_image)
+    displacement_images = [sitk.GetImageFromArray(displacement_fields[...,idx], isVector=True) for idx in range(displacement_fields.shape[-1])]
+    for idx in range(len(displacement_images)):
+        displacement_images[idx].SetSpacing(s_Image.GetSpacing())
+        displacement_images[idx].SetOrigin(s_Image.GetOrigin())
+        displacement_images[idx].SetDirection(s_Image.GetDirection())
+    displacement_transforms = [sitk.DisplacementFieldTransform(displacement_images[idx]) for idx in range(len(displacement_images))]
 
     interpolator = sitk.sitkNearestNeighbor
-    transformed_mask = sitk.Resample(
-        s_Image,
-        s_Image.GetSize(),
-        displacement_transform,
-        interpolator,
-        s_Image.GetOrigin(),
-        s_Image.GetSpacing(),
-        s_Image.GetDirection(),
-        0.0,  # Default pixel value for regions outside the input image
-        s_Image.GetPixelID(),
-    )
+    n_Image = dc(s_Image)
+    for displacement_transform in displacement_transforms:
+        n_Image = sitk.Resample(
+            n_Image,
+            n_Image.GetSize(),
+            displacement_transform,
+            interpolator,
+            n_Image.GetOrigin(),
+            n_Image.GetSpacing(),
+            n_Image.GetDirection(),
+            0.0,  # Default pixel value for regions outside the input image
+            n_Image.GetPixelID(),
+        )
+    transformed_mask = dc(n_Image)
+    del n_Image
 
     final_mask = sitk.GetArrayFromImage(transformed_mask)
 
     interpolator = sitk.sitkLinear
+    channels = []
+    for idx in range(3):
+        n_Image = sitk.GetImageFromArray(data_dict["image"][...,idx])
+        for displacement_transform in displacement_transforms:
+            n_Image = sitk.Resample(
+                n_Image,
+                n_Image.GetSize(),
+                displacement_transform,
+                interpolator,
+                n_Image.GetOrigin(),
+                n_Image.GetSpacing(),
+                n_Image.GetDirection(),
+                0.0,  # Default pixel value for regions outside the input image
+                n_Image.GetPixelID(),
+            )
+        channel = sitk.GetArrayFromImage(n_Image)
+        channels.append(channel[...,None])
 
-    image_r = sitk.GetImageFromArray(data_dict["image"][..., 0])
-    transformed_image_r = sitk.Resample(
-        image_r,
-        image_r.GetSize(),
-        displacement_transform,
-        interpolator,
-        image_r.GetOrigin(),
-        image_r.GetSpacing(),
-        image_r.GetDirection(),
-        0.0,  # Default pixel value for regions outside the input image
-        image_r.GetPixelID(),
-    )
-    red_channel = sitk.GetArrayFromImage(transformed_image_r)
+    final_image = np.dstack(channels)
 
-    image_g = sitk.GetImageFromArray(data_dict["image"][..., 1])
-    transformed_image_g = sitk.Resample(
-        image_g,
-        image_g.GetSize(),
-        displacement_transform,
-        interpolator,
-        image_g.GetOrigin(),
-        image_g.GetSpacing(),
-        image_g.GetDirection(),
-        0.0,  # Default pixel value for regions outside the input image
-        image_g.GetPixelID(),
-    )
-    green_channel = sitk.GetArrayFromImage(transformed_image_g)
-
-    image_b = sitk.GetImageFromArray(data_dict["image"][..., 2])
-    transformed_image_b = sitk.Resample(
-        image_b,
-        image_b.GetSize(),
-        displacement_transform,
-        interpolator,
-        image_b.GetOrigin(),
-        image_b.GetSpacing(),
-        image_b.GetDirection(),
-        0.0,  # Default pixel value for regions outside the input image
-        image_b.GetPixelID(),
-    )
-    blue_channel = sitk.GetArrayFromImage(transformed_image_b)
-
-    final_image = np.dstack(
-        [red_channel[..., None], green_channel[..., None], blue_channel[..., None]]
-    )
-
+    if _debug:
+        from utils.colors import color_mask
+        displacement_field = displacement_fields.sum(-1) / displacement_fields.shape[-1]
+        df_z = np.zeros((displacement_field.shape[0], displacement_field.shape[1],3))
+        df_z[...,0] = displacement_field[...,0]
+        df_z[...,1] = displacement_field[...,1]
+        df_z[...,:2] = np.abs(df_z[...,:2])
+        df_z[...,:2] = df_z[...,:2] - df_z[...,:2].min()
+        df_z[...,:2] = df_z[...,:2] / df_z[...,:2].max()
+        plt.imsave("oim.png", data_dict["image"])
+        plt.imsave("im.png", final_image)
+        plt.imsave("ma.png", color_mask(final_mask))
+        plt.imsave("df.png", df_z)
     return final_mask, final_image
 
 
@@ -233,6 +225,7 @@ def augment_image_and_mask(
         "count": count,
         "radius": radius,
         "pinch_strength": pinch_strength,
+        "_debug": debug,
     }
     renormalize_kwargs = {
         "non_standard_renormalization": rand() > 0.25,
@@ -285,13 +278,18 @@ def load_data(base_directory, image_suffix="", mask_suffix="_seg.npy"):
     return (train_images, train_masks), (test_images, test_masks)
 
 
-def generate_augmentations(data, config):
+def generate_augmentations(data, config, progress=True):
     from sys import stderr as se
+    from tqdm.auto import tqdm
+    if progress:
+        pbar = tqdm
+    else:
+        pbar = lambda x, *args, **kwargs: x
 
     w = se.write
     augmented_images, augmented_labels = [], []
     w(f"Generating {config.training.n_augments} augments")
-    for image, label in zip(data[0], data[1]):
+    for image, label in pbar(zip(data[0], data[1])):
         for _ in range(config.training.n_augments):
             augmented_label, augmented_image = augment_image_and_mask(
                 image, label, **config.augments.todict()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 from utils import *
-from numpy.ma import masked_equal
+from numpy.ma import masked_equal, masked_array
 from matplotlib import pyplot as plt
 from cellpose import models
 from tqdm.auto import tqdm
@@ -10,19 +10,20 @@ config = UnifiedConfig()
 
 train_data, test_data = prepare_data(config.dataset.base_directory)
 
-ex_im = test_data[0][0]
+ex_im = test_data[0][1]
 
-_, cn_maps = full_energetics(
-    "promising/Model-C00.pt", "promising/Model-P00.pt", ex_im, fixup=True
+cn_data, cn_maps, cn_ma, _ = full_energetics(
+    "promising/Model-C00.pt", "promising/Model-N00.pt", ex_im, fixup=True
 )
 
 for idx in range(len(cn_maps)):
     name = ["Cell", "Nuclear"][idx]
     maps = cn_maps[idx]
-    plt.imsave(f"tmp_out/en/{name}-Pressure.png", maps[..., 0])
-    plt.imsave(f"tmp_out/en/{name}-Tension.png", maps[..., 1])
-    plt.imsave(f"tmp_out/en/{name}-CC-Adhesion.png", maps[..., 2])
-    plt.imsave(f"tmp_out/en/{name}-CT-Adhesion.png", maps[..., 3])
+    maps = masked_equal(maps, 0)
+    plt.imsave(f"tmp_out/en/{name}-Pressure.png", maps[..., 0], cmap='inferno')
+    plt.imsave(f"tmp_out/en/{name}-Tension.png", maps[..., 1], cmap='inferno')
+    plt.imsave(f"tmp_out/en/{name}-CC-Adhesion.png", maps[..., 2], cmap='inferno')
+    plt.imsave(f"tmp_out/en/{name}-CT-Adhesion.png", masked_array(np.ma.getdata(maps[..., 3]), cn_ma[0] == 0), cmap='inferno')
 
 for idx in range(cn_maps[0].shape[-1]):
     name = ["Pressure", "Tension", "CC-Adhesion", "CT-Adhesion"][idx]
