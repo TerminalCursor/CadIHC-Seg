@@ -1,3 +1,4 @@
+import numpy as np
 from matplotlib import pyplot as plt
 from numpy import array, unique, load, vectorize
 from numpy.ma import masked_array
@@ -6,14 +7,20 @@ from histseg.tools.scanner2d import Scanner2D as Scanner
 from histseg.tools.tree_workers import *
 from time import perf_counter
 
+CMAP_C = "summer"
+CMAP_N = "cool"
 NAME="HT-B5"
-NAME="HT-C5"
-NAME="HT-C7"
+#NAME="HT-C5"
+#NAME="HT-C7"
+#NAME="HT-C6"
 OUTPUT_BASE = f"tmp_out/Display/{NAME}"
-image = plt.imread(f"../../home/Downloads/Images/{NAME.replace('HT-','')}.jpg")
+OUTPUT_BASE = f"FigurePieces/Figure4-{NAME}"
+image = plt.imread(f"../../home/Downloads/Work/Images/{NAME.replace('HT-','')}.jpg")
 c_ma, n_ma, _, _ = segment(image, "promising/Model-C00.pt", "promising/Model-N00.pt")
 plt.imsave(f"{OUTPUT_BASE}-C.png", c_ma)
 plt.imsave(f"{OUTPUT_BASE}-N.png", n_ma)
+plt.imsave(f"{OUTPUT_BASE}-C_M.png", color_mask(c_ma, base_cmap=CMAP_C), cmap=CMAP_C)
+plt.imsave(f"{OUTPUT_BASE}-N_M.png", color_mask(n_ma, random=True, base_cmap=CMAP_N), cmap=CMAP_N)
 
 # Get Cell Outlines
 scanner_cell = Scanner(c_ma)
@@ -26,7 +33,7 @@ scanner_cell.scan()
 for index, data in enumerate(worker_cell.new_data):
     plt.imsave(f"{OUTPUT_BASE}-C{index}.png", np.ma.masked_equal(data, 0), cmap='Reds', vmin=0, vmax=2)
 
-# Get Cell Outlines
+# Get Nuclei Outlines
 scanner_nucleus = Scanner(n_ma)
 worker_nucleus = TreeWorker(scanner_nucleus, width=3)
 worker_nucleus.new_worker(InteriorOutlineSubworker)

@@ -1,12 +1,17 @@
 #!/usr/bin/env python
 # coding: utf-8
-from utils import *
+from time import perf_counter
+
+from cellpose import models
+from matplotlib import pyplot as plt
 from numpy import uint8
 from numpy.ma import masked_equal
-from matplotlib import pyplot as plt
-from cellpose import models
 from tqdm.auto import tqdm
-from time import perf_counter
+
+from utils import *
+
+CMAP_C = "summer"
+CMAP_N = "cool"
 
 config = UnifiedConfig()
 
@@ -93,9 +98,9 @@ def dot_mask(ma, im=None, w=4):
     if isinstance(ma, list):
         res = [dot_mask(m, im=im, w=w) for m in ma]
         return zip(*res)
-    from scipy.ndimage import center_of_mass
     from numpy import unique
     from numpy.ma import MaskedArray
+    from scipy.ndimage import center_of_mass
 
     if isinstance(ma, MaskedArray):
         mav = ma.data
@@ -150,6 +155,17 @@ def _process(fname):
     t0 = perf_counter()
     im = load_image(fname)
     obase = fname[: -len(".jpg")]
+    obase = obase.split("/")[-1]
+    Obase = f"FigurePieces/Figure1-{obase}"
+    obase = f"FigurePieces/Figure4-{obase}"
+    c_ma_unc, n_r_o, _, _ = segment(
+        im,
+        "promising/Model-C00.pt",
+        "promising/Model-N00.pt",
+        restrict=False,
+        closeup=False,
+        masked=True,
+    )
     c_ma, n_ma, c_r, n_r = segment(
         im, "promising/Model-C00.pt", "promising/Model-N00.pt", masked=True
     )
@@ -162,12 +178,16 @@ def _process(fname):
     t2 = perf_counter()
     (cd, nd), (cim, nim) = dot_mask([c_ma, n_ma], im=im)
     t3 = perf_counter()
-    plt.imsave(f"{obase}_Cell.png", color_mask(c_ma))
+    plt.imsave(f"{obase}_Cell.png", color_mask(c_ma), cmap=CMAP_C)
+    plt.imsave(f"{Obase}_CellR.png", color_mask(c_ma), cmap="Reds", vmin=-1)
+    plt.imsave(f"{obase}_CellHoles.png", color_mask(c_ma_unc), cmap=CMAP_C)
     plt.imsave(f"{obase}_CellMask.png", c_r)
     plt.imsave(f"{obase}_CellDot.png", cim.transpose(1, 2, 0))
-    plt.imsave(f"{obase}_Nuclei.png", color_mask(n_ma), cmap="cool")
+    plt.imsave(f"{obase}_Nuclei.png", color_mask(n_ma, random=True, base_cmap=CMAP_N), cmap=CMAP_N)
+    plt.imsave(f"{Obase}_NucleiB.png", color_mask(n_ma), cmap="Blues", vmin=-1)
     plt.imsave(f"{obase}_NucleiRegular.png", color_mask(n_ma))
     plt.imsave(f"{obase}_NucleiMask.png", n_r)
+    plt.imsave(f"{obase}_NucleiAll.png", color_mask(n_r_o, random=True, base_cmap=CMAP_N), cmap=CMAP_N)
     plt.imsave(f"{obase}_NucleiDot.png", nim.transpose(1, 2, 0))
     plt.imsave(f"{obase}_CellOutline.png", color_mask(c_out))
     plt.imsave(f"{obase}_NucleiOutline.png", color_mask(n_out))
@@ -179,11 +199,11 @@ def _process(fname):
         "promising/Model-C00.pt", "promising/Model-N00.pt", im, _width=2, fixup=True
     )
     for idx in range(3):
-        _data = c_v[0][idx,...]
+        _data = c_v[0][idx, ...]
         _mask = _data > 0
         print(_data[_mask].min())
         print(_data[_mask].max())
-    _data = c_v[0][3,...]
+    _data = c_v[0][3, ...]
     _mask = _data > 0
     print(_data[_mask].min())
     print(_data[_mask].max())
@@ -239,33 +259,34 @@ def _process(fname):
     plt.imsave(f"{obase}_CR_Cm.png", color_mask(c_ma[x : x + W, y : y + H]))
     plt.imsave(f"{obase}_CR_Nm.png", color_mask(n_ma[x : x + W, y : y + H]))
     plt.imsave(
-        f"{obase}_CR_Nma.png", color_mask(n_ma[x : x + W, y : y + H]), cmap="cool"
+        f"{obase}_CR_Nma.png", color_mask(n_ma[x : x + W, y : y + H]), cmap=CMAP_N
     )
     plt.imsave(f"{obase}_CR_Co.png", color_mask(c_out[x : x + W, y : y + H]))
     plt.imsave(
-        f"{obase}_CR_Noa.png", color_mask(n_out[x : x + W, y : y + H]), cmap="cool"
+        f"{obase}_CR_Noa.png", color_mask(n_out[x : x + W, y : y + H]), cmap=CMAP_N
     )
-    #plt.imsave(
+    # plt.imsave(
     #    f"{obase}_CR_Pressure.png", pressure_energy[x : x + W, y : y + H], cmap="Blues"
-    #)
-    #plt.imsave(
+    # )
+    # plt.imsave(
     #    f"{obase}_CR_CCAdhesion.png",
     #    cc_adhesion_energy[x : x + W, y : y + H],
     #    cmap="Reds",
-    #)
-    #plt.imsave(
+    # )
+    # plt.imsave(
     #    f"{obase}_CR_CTAdhesion.png",
     #    ct_adhesion_energy[x : x + W, y : y + H],
     #    cmap="Greens",
-    #)
+    # )
 
 
-base = "../../home/Downloads/Images/"
+base = "../../home/Downloads/Work/Images/"
 from glob import glob
 
-for fname in glob(base + "C7.jpg"):
-    _process(fname)
-    assert False
+for names in ["B5", "B9", "C7"]:
+    for fname in glob(base + names + ".jpg"):  # B5, B9, C7
+        _process(fname)
+assert False
 
 for fname in glob(base + "*.jpg"):
     _process(fname)

@@ -12,3 +12,9 @@ tmp_out
 
 *.c
 *.so
+*.png
+FigurePieces
+ihc
+*.old
+
+.envrc

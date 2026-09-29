@@ -175,6 +175,8 @@ def random_colormap(data, base_colormap=None) -> Colormap:
 
     if base_colormap is None:
         base_colormap = plt.cm.jet
+    if isinstance(base_colormap, str):
+        base_colormap = plt.colormaps.get_cmap(base_colormap)
     vals = np.linspace(0, 1, len(np.unique(data)))
     np.random.shuffle(vals)
     cmap = plt.cm.colors.ListedColormap(base_colormap(vals))
