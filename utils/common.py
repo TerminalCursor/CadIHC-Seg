@@ -1,6 +1,3 @@
-from matplotlib.colors import Colormap
-
-
 def preproc_results(results):
     """# Preprocess Dictionary Results
 
@@ -161,7 +158,7 @@ def evaluate_model(model, data_mask_tuple, diameter=30, full=False, slow=False):
     return orig_evaluate_model(model, data_mask_tuple, diameter=diameter)
 
 
-def random_colormap(data, base_colormap=None) -> Colormap:
+def random_colormap(data, base_colormap=None):
     """# Randomly Color Data
 
     Instead of having a sequential colormap, randomly color data.
@@ -175,8 +172,6 @@ def random_colormap(data, base_colormap=None) -> Colormap:
 
     if base_colormap is None:
         base_colormap = plt.cm.jet
-    if isinstance(base_colormap, str):
-        base_colormap = plt.colormaps.get_cmap(base_colormap)
     vals = np.linspace(0, 1, len(np.unique(data)))
     np.random.shuffle(vals)
     cmap = plt.cm.colors.ListedColormap(base_colormap(vals))
@@ -404,8 +399,6 @@ def load_image(ffile, halve=True):
     3. Transform it under standard normalization transformation
     4. Subsample by a factor of two if halve is true
     """
-    from matplotlib import pyplot as plt
-    from .image import transform_image
     image = plt.imread(ffile)
     assert len(image.shape) == 3
     if image.shape[0] > 4:
@@ -420,11 +413,9 @@ def load_image(ffile, halve=True):
 
 def load_pth(pth):
     """# Load a Cellpose pth"""
-    from . import ModelBuildConfig
-    from cellpose import models
     cfg = ModelBuildConfig()
     cfg.pretrained_model = pth
-    return models.CellposeModel(**cfg.todict())
+    return models.CellposeModel(**cfg.to_dict())
 
 
 def segment(image, c_mstr, n_mstr, restrict=True, closeup=True, masked=False):

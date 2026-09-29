@@ -85,7 +85,6 @@ def perterb_image_and_mask(image, mask, count=30, radius=60, pinch_strength=-12,
             n_Image.GetPixelID(),
         )
     transformed_mask = dc(n_Image)
-    del n_Image
 
     final_mask = sitk.GetArrayFromImage(transformed_mask)
 
@@ -278,18 +277,13 @@ def load_data(base_directory, image_suffix="", mask_suffix="_seg.npy"):
     return (train_images, train_masks), (test_images, test_masks)
 
 
-def generate_augmentations(data, config, progress=True):
+def generate_augmentations(data, config):
     from sys import stderr as se
-    from tqdm.auto import tqdm
-    if progress:
-        pbar = tqdm
-    else:
-        pbar = lambda x, *args, **kwargs: x
 
     w = se.write
     augmented_images, augmented_labels = [], []
     w(f"Generating {config.training.n_augments} augments")
-    for image, label in pbar(zip(data[0], data[1])):
+    for image, label in zip(data[0], data[1]):
         for _ in range(config.training.n_augments):
             augmented_label, augmented_image = augment_image_and_mask(
                 image, label, **config.augments.todict()

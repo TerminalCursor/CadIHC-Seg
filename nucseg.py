@@ -1,17 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
-from time import perf_counter
-
-from cellpose import models
-from matplotlib import pyplot as plt
-from numpy import uint8
-from numpy.ma import masked_equal
-from tqdm.auto import tqdm
-
 from utils import *
-
-CMAP_C = "summer"
-CMAP_N = "cool"
+from numpy.ma import masked_equal
+from matplotlib import pyplot as plt
+from cellpose import models
+from tqdm.auto import tqdm
+from time import perf_counter
 
 config = UnifiedConfig()
 
@@ -98,9 +92,9 @@ def dot_mask(ma, im=None, w=4):
     if isinstance(ma, list):
         res = [dot_mask(m, im=im, w=w) for m in ma]
         return zip(*res)
+    from scipy.ndimage import center_of_mass
     from numpy import unique
     from numpy.ma import MaskedArray
-    from scipy.ndimage import center_of_mass
 
     if isinstance(ma, MaskedArray):
         mav = ma.data
@@ -155,39 +149,21 @@ def _process(fname):
     t0 = perf_counter()
     im = load_image(fname)
     obase = fname[: -len(".jpg")]
-    obase = obase.split("/")[-1]
-    Obase = f"FigurePieces/Figure1-{obase}"
-    obase = f"FigurePieces/Figure4-{obase}"
-    c_ma_unc, n_r_o, _, _ = segment(
-        im,
-        "promising/Model-C00.pt",
-        "promising/Model-N00.pt",
-        restrict=False,
-        closeup=False,
-        masked=True,
-    )
     c_ma, n_ma, c_r, n_r = segment(
         im, "promising/Model-C00.pt", "promising/Model-N00.pt", masked=True
     )
     t1 = perf_counter()
-    W = 4
-    c_out = outline(c_ma, width=W)
-    n_out = outline(n_ma, width=W)
-    c2_out = outline(c_ma, width=2 * W)
-    n2_out = outline(n_ma, width=2 * W)
+    c_out = outline(c_ma, width=4)
+    n_out = outline(n_ma, width=4)
     t2 = perf_counter()
     (cd, nd), (cim, nim) = dot_mask([c_ma, n_ma], im=im)
     t3 = perf_counter()
-    plt.imsave(f"{obase}_Cell.png", color_mask(c_ma), cmap=CMAP_C)
-    plt.imsave(f"{Obase}_CellR.png", color_mask(c_ma), cmap="Reds", vmin=-1)
-    plt.imsave(f"{obase}_CellHoles.png", color_mask(c_ma_unc), cmap=CMAP_C)
+    plt.imsave(f"{obase}_Cell.png", color_mask(c_ma))
     plt.imsave(f"{obase}_CellMask.png", c_r)
     plt.imsave(f"{obase}_CellDot.png", cim.transpose(1, 2, 0))
-    plt.imsave(f"{obase}_Nuclei.png", color_mask(n_ma, random=True, base_cmap=CMAP_N), cmap=CMAP_N)
-    plt.imsave(f"{Obase}_NucleiB.png", color_mask(n_ma), cmap="Blues", vmin=-1)
+    plt.imsave(f"{obase}_Nuclei.png", color_mask(n_ma), cmap="cool")
     plt.imsave(f"{obase}_NucleiRegular.png", color_mask(n_ma))
     plt.imsave(f"{obase}_NucleiMask.png", n_r)
-    plt.imsave(f"{obase}_NucleiAll.png", color_mask(n_r_o, random=True, base_cmap=CMAP_N), cmap=CMAP_N)
     plt.imsave(f"{obase}_NucleiDot.png", nim.transpose(1, 2, 0))
     plt.imsave(f"{obase}_CellOutline.png", color_mask(c_out))
     plt.imsave(f"{obase}_NucleiOutline.png", color_mask(n_out))
@@ -195,102 +171,19 @@ def _process(fname):
     np.savetxt(f"{obase}_Cell.csv", cd)
     np.savetxt(f"{obase}_Nuclei.csv", nd)
     t5 = perf_counter()
-    c_data, c_maps, _, c_v = full_energetics(
-        "promising/Model-C00.pt", "promising/Model-N00.pt", im, _width=2, fixup=True
-    )
-    for idx in range(3):
-        _data = c_v[0][idx, ...]
-        _mask = _data > 0
-        print(_data[_mask].min())
-        print(_data[_mask].max())
-    _data = c_v[0][3, ...]
-    _mask = _data > 0
-    print(_data[_mask].min())
-    print(_data[_mask].max())
-    t6 = perf_counter()
-    ## from numpy.ma import masked_array
-
-    ## assert isinstance(c_ma, MaskedArray)
-    ## cell_mask = np.ma.getdata(c_ma) == 0
-    ## c1___mask = np.ma.getdata(c_out) == 0
-    ## c2___mask = np.ma.getdata(c2_out) == 0
-    ## pressure_energy = color_mask(np.ma.getdata(c_maps[0][..., 0]), None)
-    ## pressure_energy = masked_array(pressure_energy, cell_mask)
-    ## cc_adhesion_energy = color_mask(np.ma.getdata(c_maps[0][..., 2]), None)
-    ## cc_adhesion_energy = masked_array(cc_adhesion_energy, c2___mask)
-    ## ct_adhesion_energy = color_mask(np.ma.getdata(c_maps[0][..., 3]), None)
-    ## ct_adhesion_energy = masked_array(ct_adhesion_energy, c1___mask)
-    ## plt.imsave(f"{obase}_Pressure.png", pressure_energy, cmap="Blues")
-    ## plt.imsave(f"{obase}_CCAdhesion.png", cc_adhesion_energy, cmap="Reds")
-    ## plt.imsave(f"{obase}_CTAdhesion.png", ct_adhesion_energy, cmap="Greens")
-    plt.imsave(f"{obase}_Energy.png", c_v[0])
-    t7 = perf_counter()
-    times = np.array([t1, t2, t3, t4, t5, t6, t7]) - np.array(
-        [t0, t1, t2, t3, t4, t5, t6]
-    )
+    times = np.array([t1, t2, t3, t4, t5]) - np.array([t0, t1, t2, t3, t4])
     print(times)
-
-    c_data, c_maps, _, c_v = full_energetics(
-        "promising/Model-C00.pt", "promising/Model-N00.pt", im, _width=1, fixup=True
-    )
-    ## from numpy.ma import masked_array
-
-    ## assert isinstance(c_ma, MaskedArray)
-    ## cell_mask = np.ma.getdata(c_ma) == 0
-    ## c1___mask = np.ma.getdata(c_out) == 0
-    ## c2___mask = np.ma.getdata(c2_out) == 0
-    ## pressure_energy = color_mask(np.ma.getdata(c_maps[0][..., 0]), None)
-    ## pressure_energy = masked_array(pressure_energy, cell_mask)
-    ## cc_adhesion_energy = color_mask(np.ma.getdata(c_maps[0][..., 2]), None)
-    ## cc_adhesion_energy = masked_array(cc_adhesion_energy, c2___mask)
-    ## ct_adhesion_energy = color_mask(np.ma.getdata(c_maps[0][..., 3]), None)
-    ## ct_adhesion_energy = masked_array(ct_adhesion_energy, c1___mask)
-    ## plt.imsave(f"{obase}_ThinPressure.png", pressure_energy, cmap="Blues")
-    ## plt.imsave(f"{obase}_ThinCCAdhesion.png", cc_adhesion_energy, cmap="Reds")
-    ## plt.imsave(f"{obase}_ThinCTAdhesion.png", ct_adhesion_energy, cmap="Greens")
-    plt.imsave(f"{obase}_ThinEnergy.png", c_v[0])
-
-    W, H = (96 * 2, 48 * 2)
-    ri = np.random.randint
-    x, y = ri(c_ma.shape[0] - W), ri(c_ma.shape[1] - H)
-    assert c_ma.shape[0] == im.shape[1]
-    assert c_ma.shape[1] == im.shape[2]
-    plt.imsave(f"{obase}_CR_Im.png", im.transpose(1, 2, 0)[x : x + W, y : y + H, :])
-    plt.imsave(f"{obase}_CR_Cm.png", color_mask(c_ma[x : x + W, y : y + H]))
-    plt.imsave(f"{obase}_CR_Nm.png", color_mask(n_ma[x : x + W, y : y + H]))
-    plt.imsave(
-        f"{obase}_CR_Nma.png", color_mask(n_ma[x : x + W, y : y + H]), cmap=CMAP_N
-    )
-    plt.imsave(f"{obase}_CR_Co.png", color_mask(c_out[x : x + W, y : y + H]))
-    plt.imsave(
-        f"{obase}_CR_Noa.png", color_mask(n_out[x : x + W, y : y + H]), cmap=CMAP_N
-    )
-    # plt.imsave(
-    #    f"{obase}_CR_Pressure.png", pressure_energy[x : x + W, y : y + H], cmap="Blues"
-    # )
-    # plt.imsave(
-    #    f"{obase}_CR_CCAdhesion.png",
-    #    cc_adhesion_energy[x : x + W, y : y + H],
-    #    cmap="Reds",
-    # )
-    # plt.imsave(
-    #    f"{obase}_CR_CTAdhesion.png",
-    #    ct_adhesion_energy[x : x + W, y : y + H],
-    #    cmap="Greens",
-    # )
+    assert False
 
 
-base = "../../home/Downloads/Work/Images/"
+base = "../../home/Downloads/Images/"
 from glob import glob
 
-for names in ["B5", "B9", "C7"]:
-    for fname in glob(base + names + ".jpg"):  # B5, B9, C7
-        _process(fname)
-assert False
+for fname in glob(base + "C7.jpg"):
+    _process(fname)
 
 for fname in glob(base + "*.jpg"):
     _process(fname)
-    # assert False
 
 """
 ex_im = load_image("../BaseImage.png")

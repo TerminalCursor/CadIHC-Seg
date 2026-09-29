@@ -315,9 +315,6 @@ def close_all(mask, background=0, n=2, old=False):
 
 
 def postforward(model, image, n=4, nan_background=False, old=False):
-    from cellpose.dynamics import dynamics_logger
-
-    dynamics_logger.setLevel("ERROR")
     # If given a list of images, return for each image
     if isinstance(image, list) or isinstance(image, tuple):
         return [

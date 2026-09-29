@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # coding: utf-8
-from numpy import unique
 from utils import *
 from json import dumps
 dump = lambda x: dumps(x, indent=2)
@@ -27,15 +26,6 @@ test_labels = test_data[1]
 print("Loaded data")
 print(f"Train: {len(train_images)} {len(train_labels)}")
 print(f"Test: {len(test_images)} {len(test_labels)}")
-
-total_count = 0
-for labels in [train_labels, test_labels]:
-    label_count = 0
-    for labeled in labels:
-        label_count += len(unique(labeled))-1
-    print(f"Batch count: {label_count}")
-    total_count += label_count
-print(f"Total count: {total_count}")
 
 # 3. Segment
 train_segmen = postforward(model, train_images)
