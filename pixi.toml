@@ -1,0 +1,31 @@
+[workspace]
+channels = ["pytorch", "conda-forge", "nvidia"]
+channel-priority = "disabled"
+description = "Histology Segmentation Environment"
+name = "HistSeg"
+platforms = ["linux-aarch64", "linux-64"]
+version = "0.1.0"
+
+[tasks]
+train = {cmd = "python GeneralizedWorkflow.py"}
+
+[system-requirements]
+cuda = "12.8"
+
+[dependencies]
+python = "3.12.*"
+pip = "*"
+pytorch = "*"
+llvm = ">=19.1.6,<20"
+numpy = ">=2"
+simpleitk = "*"
+scikit-image = ">=0.25.2,<0.26"
+black = ">=25.1.0,<26"
+
+[pypi-dependencies]
+ipykernel = "*"
+ipywidgets = "*"
+cellpose = { git = "https://www.github.com/mouseland/cellpose.git", rev = "d95f58a6676362d4e625076e55cd73b47c3bae26" }
+matplotlib = "*"
+ncolor = "*"
+ciecam02 = "*"
