@@ -1,0 +1,14 @@
+# Segmentation dataset folder or symlink
+data
+data/
+# Model training dump files
+dump/
+# Python-managed files
+__pycache__/
+# Pixi environments
+.pixi/*
+# Cython-intermediate files
+*.c
+*.so
+# Model files
+promising/
