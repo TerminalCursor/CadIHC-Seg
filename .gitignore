@@ -10,5 +10,6 @@ __pycache__/
 # Cython-intermediate files
 *.c
 *.so
-# Model files
-promising/
+# Ignore Models
+promising/Model-C00.pt
+promising/Model-N00.pt
